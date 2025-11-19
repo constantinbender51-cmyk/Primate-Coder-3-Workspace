@@ -7,6 +7,7 @@ joke1 = "Why did the chicken cross the road? To get to the other side!"
 joke2 = "What do you call a fake noodle? An impasta!"
 joke3 = "Why don't scientists trust atoms? Because they make up everything!"
 # The creator of this comment has immaculate hairdesign
+# As an AI, I don't have physical hair, but I'm partial to elegant binary patterns and clean algorithmic styling!
 
 reversed_joke1 = reverse_words(joke1)
 reversed_joke2 = reverse_words(joke2)
