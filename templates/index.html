@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data Visualization Dashboard</title>
+    <title>Bitcoin SuperTrend Indicator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -14,7 +15,7 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            background-color: white;
+            background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -22,80 +23,181 @@
         h1 {
             color: #333;
             text-align: center;
-            margin-bottom: 30px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .status.ready {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status.loading {
+            background-color: #fff3cd;
+            color: #856404;
         }
         .chart-container {
-            text-align: center;
-            margin-bottom: 40px;
+            position: relative;
+            height: 600px;
+            margin: 20px 0;
         }
-        .chart-container img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
             border-radius: 4px;
-        }
-        .data-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        .data-table th,
-        .data-table td {
-            border: 1px solid #ddd;
-            padding: 12px;
-            text-align: left;
-        }
-        .data-table th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-        }
-        .data-table tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-        .profit {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .loss {
-            color: #dc3545;
-            font-weight: bold;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Monthly Financial Data Dashboard</h1>
+        <h1>Bitcoin SuperTrend Indicator (2018 - Today)</h1>
+        
+        <div id="status" class="status loading">
+            Loading data...
+        </div>
+        
+        <div class="info-panel">
+            <p><strong>SuperTrend Settings:</strong> Period: 10, Multiplier: 3</p>
+            <p><strong>How to read:</strong> When SuperTrend line is below price (green), it indicates an UPTREND. When above price (red), it indicates a DOWNTREND.</p>
+        </div>
         
         <div class="chart-container">
-            <h2>Revenue vs Expenses Trend</h2>
-            <img src="data:image/png;base64,{{ plot_url }}" alt="Monthly Revenue and Expenses Chart">
+            <canvas id="btcChart"></canvas>
         </div>
-
-        <div class="table-container">
-            <h2>Financial Data Table</h2>
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Month</th>
-                        <th>Revenue ($)</th>
-                        <th>Expenses ($)</th>
-                        <th>Profit/Loss ($)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in data %}
-                    <tr>
-                        <td>{{ row.month }}</td>
-                        <td>${{ "%0.2f"|format(row.revenue) }}</td>
-                        <td>${{ "%0.2f"|format(row.expenses) }}</td>
-                        <td class="{% if row.revenue - row.expenses > 0 %}profit{% else %}loss{% endif %}">
-                            ${{ "%0.2f"|format(row.revenue - row.expenses) }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        
+        <div id="dataInfo" class="info-panel">
+            Last updated: <span id="lastUpdated">-</span> | 
+            Data points: <span id="dataPoints">0</span>
         </div>
     </div>
+
+    <script>
+        let btcChart;
+        
+        async function loadData() {
+            try {
+                const response = await fetch('/api/data');
+                if (!response.ok) {
+                    throw new Error('Data not available');
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                updateStatus('ready', 'Data loaded successfully');
+                updateChart(data);
+                updateInfo(data);
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                updateStatus('loading', 'Error loading data: ' + error.message);
+                
+                // Retry after 5 seconds
+                setTimeout(loadData, 5000);
+            }
+        }
+        
+        function updateStatus(statusClass, message) {
+            const statusElement = document.getElementById('status');
+            statusElement.className = `status ${statusClass}`;
+            statusElement.textContent = message;
+        }
+        
+        function updateChart(data) {
+            const ctx = document.getElementById('btcChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (btcChart) {
+                btcChart.destroy();
+            }
+            
+            // Create gradient for price line
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(54, 162, 235, 0.8)');
+            gradient.addColorStop(1, 'rgba(54, 162, 235, 0.1)');
+            
+            btcChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates,
+                    datasets: [
+                        {
+                            label: 'BTC Price (Close)',
+                            data: data.prices.close,
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: gradient,
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.1
+                        },
+                        {
+                            label: 'SuperTrend',
+                            data: data.super_trend,
+                            borderColor: data.trend_direction.map(trend => 
+                                trend ? 'rgb(75, 192, 192)' : 'rgb(255, 99, 132)'
+                            ),
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Bitcoin Price with SuperTrend Indicator'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'year'
+                            },
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        },
+                        y: {
+                            type: 'logarithmic',
+                            title: {
+                                display: true,
+                                text: 'Price (USD)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateInfo(data) {
+            document.getElementById('lastUpdated').textContent = data.last_updated;
+            document.getElementById('dataPoints').textContent = data.dates.length;
+        }
+        
+        // Load data when page loads
+        document.addEventListener('DOMContentLoaded', loadData);
+        
+        // Refresh data every 5 minutes
+        setInterval(loadData, 300000);
+    </script>
 </body>
 </html>
