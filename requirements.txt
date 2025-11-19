@@ -1,6 +1,7 @@
-Flask
+flask
 pandas
-matplotlib
+binance-client
+ta
+python-dateutil
 requests
-scikit-learn
-numpy
+thread6
