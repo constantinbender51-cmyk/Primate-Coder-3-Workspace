@@ -2,3 +2,5 @@ Flask
 pandas
 matplotlib
 requests
+scikit-learn
+numpy
